@@ -190,5 +190,21 @@ $ctbFqdn = (az containerapp create `
 
 "https://$ctbFqdn/"
 
+# Update with new revision and make it active right away
+$ctbFqdn = (az containerapp update `
+  --name ctb `
+  --revisions-mode single `
+  --resource-group $resourceGroup `
+  --image "jannemattila/catch-the-banana:1.0.57" `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --ingress "external" `
+  --target-port 80 `
+  --min-replicas 0 `
+  --max-replicas 1 `
+  --query latestRevisionFqdn -o tsv)
+
+"https://$ctbFqdn/"
+
 # Wipe out the resources
 az group delete --name $resourceGroup -y
