@@ -43,5 +43,31 @@ az containerapp env create `
   --logs-workspace-key $workspaceKey `
   --location $location
 
+#############################
+# Create App Service 1: Echo
+#############################
+$echoAppFqdn = (az containerapp create `
+  --name echo `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image jannemattila/echo:latest `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --ingress "external" `
+  --target-port 80 `
+  --min-replicas 0 `
+  --max-replicas 1 `
+  --query latestRevisionFqdn -o tsv)
+
+"https://$echoAppFqdn/"
+
+$url = "https://$echoAppFqdn/api/echo"
+$data = @{
+    firstName = "John"
+    lastName  = "Doe"
+}
+$body = ConvertTo-Json $data
+Invoke-RestMethod -Body $body -ContentType "application/json" -Method "POST" -DisableKeepAlive -Uri $url
+
 # Wipe out the resources
 az group delete --name $resourceGroup -y
