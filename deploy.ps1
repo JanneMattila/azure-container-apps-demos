@@ -170,5 +170,25 @@ az monitor log-analytics query `
   --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'webapp-network-tester'" `
   --out table
 
+
+###################
+# Create App 3: CTB
+###################
+# Deploy image "1.0.56"
+$ctbFqdn = (az containerapp create `
+  --name ctb `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image "jannemattila/catch-the-banana:1.0.56" `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --ingress "external" `
+  --target-port 80 `
+  --min-replicas 0 `
+  --max-replicas 1 `
+  --query latestRevisionFqdn -o tsv)
+
+"https://$ctbFqdn/"
+
 # Wipe out the resources
 az group delete --name $resourceGroup -y
