@@ -1,7 +1,4 @@
-# Change at least this!
-$yourName = "janne"
-
-# Other variables
+# Variables
 $containerAppsEnvironment = "mycontainerenvironment"
 $workspaceName = "aca-workspace"
 $storageAccountName = "academos0000010"
