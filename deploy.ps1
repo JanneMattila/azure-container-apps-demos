@@ -144,22 +144,22 @@ $webAppNetworkAppFqdn = (az containerapp create `
 $url2 = "https://$webAppNetworkAppFqdn/api/commands"
 
 # Test that app is running succesfully
-Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
 IPLOOKUP bing.com
 "@
 
 # Grab Dapr port from environment variable
-Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
 INFO ENV DAPR_HTTP_PORT
 "@
 
 # Get "demo1" state content
-Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
 HTTP GET http://localhost:3500/v1.0/state/statestore/demo1
 "@
 
 # Post "demo1" state content
-Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
 HTTP POST http://dapr-app-id:webappnt@localhost:3500/v1.0/state/statestore
 [{ "key": "demo1", "value": "Here is state value to be stored"}]
 "@
