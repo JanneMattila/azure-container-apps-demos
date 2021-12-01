@@ -58,6 +58,9 @@ $echoAppFqdn = (az containerapp create `
   --max-replicas 1 `
   --query latestRevisionFqdn -o tsv)
 
+# If you want to fetch existing container app details
+$echoAppFqdn = (az containerapp show --name echo --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
+
 "https://$echoAppFqdn/"
 
 $url = "https://$echoAppFqdn/api/echo"
@@ -136,6 +139,9 @@ $webAppNetworkAppFqdn = (az containerapp create `
   --dapr-components ./components.yaml `
   --query latestRevisionFqdn -o tsv)
 
+# If you want to fetch existing container app details
+$webAppNetworkAppFqdn = (az containerapp show --name webapp-network-tester --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
+
 "https://$webAppNetworkAppFqdn/"
 
 $url2 = "https://$webAppNetworkAppFqdn/api/commands"
@@ -184,6 +190,9 @@ $ctbFqdn = (az containerapp create `
   --min-replicas 0 `
   --max-replicas 1 `
   --query latestRevisionFqdn -o tsv)
+
+# If you want to fetch existing container app details
+$ctbFqdn = (az containerapp show --name ctb --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
 
 "https://$ctbFqdn/"
 
