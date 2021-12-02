@@ -46,17 +46,17 @@ az containerapp env create `
 # Create App 1: Echo
 ####################
 $echoAppFqdn = (az containerapp create `
-  --name echo `
-  --resource-group $resourceGroup `
-  --environment $containerAppsEnvironment `
-  --image jannemattila/echo:latest `
-  --cpu "0.25" `
-  --memory "0.5Gi" `
-  --ingress "external" `
-  --target-port 80 `
-  --min-replicas 0 `
-  --max-replicas 1 `
-  --query latestRevisionFqdn -o tsv)
+    --name echo `
+    --resource-group $resourceGroup `
+    --environment $containerAppsEnvironment `
+    --image jannemattila/echo:latest `
+    --cpu "0.25" `
+    --memory "0.5Gi" `
+    --ingress "external" `
+    --target-port 80 `
+    --min-replicas 0 `
+    --max-replicas 1 `
+    --query latestRevisionFqdn -o tsv)
 
 # If you want to fetch existing container app details
 $echoAppFqdn = (az containerapp show --name echo --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
@@ -65,8 +65,8 @@ $echoAppFqdn = (az containerapp show --name echo --resource-group $resourceGroup
 
 $url = "https://$echoAppFqdn/api/echo"
 $data = @{
-    firstName = "John"
-    lastName  = "Doe"
+  firstName = "John"
+  lastName  = "Doe"
 }
 $body = ConvertTo-Json $data
 Invoke-RestMethod -Body $body -ContentType "application/json" -Method "POST" -DisableKeepAlive -Uri $url
@@ -123,21 +123,21 @@ $storageKey = (az storage account keys list --resource-group $resourceGroup --ac
 "@ > components.json
 
 $webAppNetworkAppFqdn = (az containerapp create `
-  --name webapp-network-tester `
-  --resource-group $resourceGroup `
-  --environment $containerAppsEnvironment `
-  --image jannemattila/webapp-network-tester:latest `
-  --cpu "0.25" `
-  --memory "0.5Gi" `
-  --ingress "external" `
-  --target-port 80 `
-  --min-replicas 0 `
-  --max-replicas 1 `
-  --enable-dapr `
-  --dapr-app-port 80 `
-  --dapr-app-id webappnt `
-  --dapr-components ./components.yaml `
-  --query latestRevisionFqdn -o tsv)
+    --name webapp-network-tester `
+    --resource-group $resourceGroup `
+    --environment $containerAppsEnvironment `
+    --image jannemattila/webapp-network-tester:latest `
+    --cpu "0.25" `
+    --memory "0.5Gi" `
+    --ingress "external" `
+    --target-port 80 `
+    --min-replicas 0 `
+    --max-replicas 1 `
+    --enable-dapr `
+    --dapr-app-port 80 `
+    --dapr-app-id webappnt `
+    --dapr-components ./components.yaml `
+    --query latestRevisionFqdn -o tsv)
 
 # If you want to fetch existing container app details
 $webAppNetworkAppFqdn = (az containerapp show --name webapp-network-tester --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
@@ -179,17 +179,17 @@ az monitor log-analytics query `
 ###################
 # Deploy image "1.0.56"
 $ctbFqdn = (az containerapp create `
-  --name ctb `
-  --resource-group $resourceGroup `
-  --environment $containerAppsEnvironment `
-  --image "jannemattila/catch-the-banana:1.0.56" `
-  --cpu "0.25" `
-  --memory "0.5Gi" `
-  --ingress "external" `
-  --target-port 80 `
-  --min-replicas 0 `
-  --max-replicas 1 `
-  --query latestRevisionFqdn -o tsv)
+    --name ctb `
+    --resource-group $resourceGroup `
+    --environment $containerAppsEnvironment `
+    --image "jannemattila/catch-the-banana:1.0.56" `
+    --cpu "0.25" `
+    --memory "0.5Gi" `
+    --ingress "external" `
+    --target-port 80 `
+    --min-replicas 0 `
+    --max-replicas 1 `
+    --query latestRevisionFqdn -o tsv)
 
 # If you want to fetch existing container app details
 $ctbFqdn = (az containerapp show --name ctb --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
@@ -198,17 +198,17 @@ $ctbFqdn = (az containerapp show --name ctb --resource-group $resourceGroup --qu
 
 # Update with new revision and make it active right away
 $ctbFqdn = (az containerapp update `
-  --name ctb `
-  --revisions-mode single `
-  --resource-group $resourceGroup `
-  --image "jannemattila/catch-the-banana:1.0.57" `
-  --cpu "0.25" `
-  --memory "0.5Gi" `
-  --ingress "external" `
-  --target-port 80 `
-  --min-replicas 0 `
-  --max-replicas 1 `
-  --query latestRevisionFqdn -o tsv)
+    --name ctb `
+    --revisions-mode single `
+    --resource-group $resourceGroup `
+    --image "jannemattila/catch-the-banana:1.0.57" `
+    --cpu "0.25" `
+    --memory "0.5Gi" `
+    --ingress "external" `
+    --target-port 80 `
+    --min-replicas 0 `
+    --max-replicas 1 `
+    --query latestRevisionFqdn -o tsv)
 
 "https://$ctbFqdn/"
 

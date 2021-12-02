@@ -9,9 +9,9 @@
 	},
 	"extensions": {
 		"recommendations": [
-			"ms-vscode.powershell",
 			"ms-azuretools.vscode-azurelogicapps",
-			"humao.rest-client"
+			"humao.rest-client",
+			"ms-vscode.powershell"
 		]
 	}
 }
