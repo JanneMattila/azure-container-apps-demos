@@ -23,6 +23,8 @@ az extension add --upgrade --yes --name log-analytics
 az extension add --yes --source "https://workerappscliextension.blob.core.windows.net/azure-cli-extension/containerapp-0.2.0-py2.py3-none-any.whl"
 az provider register --namespace Microsoft.Web
 
+az extension add --name containerapp --upgrade --yes
+
 # Double check the registration
 az provider show -n Microsoft.Web -o table
 
@@ -173,7 +175,6 @@ az monitor log-analytics query `
   --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'webapp-network-tester'" `
   --out table
 
-
 ###################
 # Create App 3: CTB
 ###################
@@ -211,6 +212,20 @@ $ctbFqdn = (az containerapp update `
     --query latestRevisionFqdn -o tsv)
 
 "https://$ctbFqdn/"
+
+###########################
+# Create App 4: Blanko app
+###########################
+
+az containerapp up --name blankoapp --source ./blankoapp --ingress external --target-port 80 --environment $containerAppsEnvironment
+
+$blankoFqdn = (az containerapp show -n blankoapp -g $resourceGroup --query properties.latestRevisionFqdn -o tsv)
+
+"https://$blankoFqdn/"
+
+az containerapp logs show -n blankoapp -g $resourceGroup --follow
+
+az containerapp exec -n blankoapp -g $resourceGroup
 
 # Wipe out the resources
 az group delete --name $resourceGroup -y
