@@ -1,0 +1,7 @@
+componentType: bindings.cron
+version: v1
+metadata:
+- name: schedule
+  value: "@every 15m"
+scopes:
+- automation

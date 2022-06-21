@@ -2,6 +2,7 @@
 $containerAppsEnvironment = "mycontainerenvironment"
 $workspaceName = "aca-workspace"
 $storageAccountName = "academos0000010"
+$acrName = "myacaacr0000010"
 
 $resourceGroup = "rg-containerapps-demo"
 $location = "northeurope"
@@ -20,16 +21,19 @@ az account show -o table
 
 # Prepare extensions and provider
 az extension add --upgrade --yes --name log-analytics
-az extension add --yes --source "https://workerappscliextension.blob.core.windows.net/azure-cli-extension/containerapp-0.2.0-py2.py3-none-any.whl"
-az provider register --namespace Microsoft.Web
-
 az extension add --name containerapp --upgrade --yes
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.OperationalInsights
 
 # Double check the registration
-az provider show -n Microsoft.Web -o table
+az provider show -n Microsoft.App -o table
 
 # Create new resource group
 az group create --name $resourceGroup --location $location -o table
+
+# Create container registry
+$acr = (az acr create -l $location -g $resourceGroup -n $acrName --sku Basic -o json) | ConvertFrom-Json
+$acr
 
 # Create Log Analytics workspace
 $workspaceCustomerId = (az monitor log-analytics workspace create --resource-group $resourceGroup --workspace-name $workspaceName --query customerId -o tsv)
@@ -47,21 +51,20 @@ az containerapp env create `
 ####################
 # Create App 1: Echo
 ####################
-$echoAppFqdn = (az containerapp create `
-    --name echo `
-    --resource-group $resourceGroup `
-    --environment $containerAppsEnvironment `
-    --image jannemattila/echo:latest `
-    --cpu "0.25" `
-    --memory "0.5Gi" `
-    --ingress "external" `
-    --target-port 80 `
-    --min-replicas 0 `
-    --max-replicas 1 `
-    --query latestRevisionFqdn -o tsv)
+az containerapp create `
+  --name echo `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image jannemattila/echo:latest `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --ingress "external" `
+  --target-port 80 `
+  --min-replicas 0 `
+  --max-replicas 1
 
 # If you want to fetch existing container app details
-$echoAppFqdn = (az containerapp show --name echo --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
+$echoAppFqdn = (az containerapp show --name echo --resource-group $resourceGroup --query properties.latestRevisionFqdn -o tsv)
 
 "https://$echoAppFqdn/"
 
@@ -87,62 +90,38 @@ az storage account create `
 $storageKey = (az storage account keys list --resource-group $resourceGroup --account-name $storageAccountName --query '[0].value' --out tsv)
 
 @"
-- name: statestore
-  type: state.azure.blobstorage
-  version: v1
-  metadata:
-  - name: accountName
-    value: $storageAccountName
-  - name: accountKey
-    value: $storageKey
-  - name: containerName
-    value: state
+componentType: state.azure.blobstorage
+version: v1
+metadata:
+- name: accountName
+  value: $storageAccountName
+- name: accountKey
+  value: $storageKey
+- name: containerName
+  value: state
+scopes:
+- webapp-network-tester
 "@ > components.yaml
 
-# json equivalent
-@"
-[
-  {
-    "name": "statestore",
-    "type": "state.azure.blobstorage",
-    "version": "v1",
-    "metadata": [
-      {
-        "name": "accountName",
-        "value": "$storageAccountName"
-      },
-      {
-        "name": "accountKey",
-        "value": "$storageKey"
-      },
-      {
-        "name": "containerName",
-        "value": "state"
-      }
-    ]
-  }
-]
-"@ > components.json
+az containerapp env dapr-component set --name $containerAppsEnvironment --resource-group $resourceGroup --dapr-component-name statestore --yaml "./components.yaml"
 
-$webAppNetworkAppFqdn = (az containerapp create `
-    --name webapp-network-tester `
-    --resource-group $resourceGroup `
-    --environment $containerAppsEnvironment `
-    --image jannemattila/webapp-network-tester:latest `
-    --cpu "0.25" `
-    --memory "0.5Gi" `
-    --ingress "external" `
-    --target-port 80 `
-    --min-replicas 0 `
-    --max-replicas 1 `
-    --enable-dapr `
-    --dapr-app-port 80 `
-    --dapr-app-id webappnt `
-    --dapr-components ./components.yaml `
-    --query latestRevisionFqdn -o tsv)
+az containerapp create `
+  --name webapp-network-tester `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image jannemattila/webapp-network-tester:latest `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --ingress "external" `
+  --target-port 80 `
+  --min-replicas 0 `
+  --max-replicas 1 `
+  --enable-dapr `
+  --dapr-app-port 80 `
+  --dapr-app-id webappnt
 
 # If you want to fetch existing container app details
-$webAppNetworkAppFqdn = (az containerapp show --name webapp-network-tester --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
+$webAppNetworkAppFqdn = (az containerapp show --name webapp-network-tester --resource-group $resourceGroup --query properties.latestRevisionFqdn -o tsv)
 
 "https://$webAppNetworkAppFqdn/"
 
@@ -178,38 +157,33 @@ az monitor log-analytics query `
 ###################
 # Create App 3: CTB
 ###################
-# Deploy image "1.0.56"
-$ctbFqdn = (az containerapp create `
-    --name ctb `
-    --resource-group $resourceGroup `
-    --environment $containerAppsEnvironment `
-    --image "jannemattila/catch-the-banana:1.0.56" `
-    --cpu "0.25" `
-    --memory "0.5Gi" `
-    --ingress "external" `
-    --target-port 80 `
-    --min-replicas 0 `
-    --max-replicas 1 `
-    --query latestRevisionFqdn -o tsv)
+az containerapp create `
+  --name ctb `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image "jannemattila/catch-the-banana:1.0.67" `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --ingress "external" `
+  --target-port 80 `
+  --min-replicas 0 `
+  --max-replicas 1
 
 # If you want to fetch existing container app details
-$ctbFqdn = (az containerapp show --name ctb --resource-group $resourceGroup --query latestRevisionFqdn -o tsv)
+$ctbFqdn = (az containerapp show --name ctb --resource-group $resourceGroup --query properties.latestRevisionFqdn -o tsv)
 
 "https://$ctbFqdn/"
 
 # Update with new revision and make it active right away
 $ctbFqdn = (az containerapp update `
     --name ctb `
-    --revisions-mode single `
     --resource-group $resourceGroup `
-    --image "jannemattila/catch-the-banana:1.0.57" `
+    --image "jannemattila/catch-the-banana:1.0.67" `
     --cpu "0.25" `
     --memory "0.5Gi" `
-    --ingress "external" `
-    --target-port 80 `
     --min-replicas 0 `
     --max-replicas 1 `
-    --query latestRevisionFqdn -o tsv)
+    --query properties.latestRevisionFqdn -o tsv)
 
 "https://$ctbFqdn/"
 
@@ -226,6 +200,39 @@ $blankoFqdn = (az containerapp show -n blankoapp -g $resourceGroup --query prope
 az containerapp logs show -n blankoapp -g $resourceGroup --follow
 
 az containerapp exec -n blankoapp -g $resourceGroup
+
+#####################################
+# Create App 5: Azure automation app
+#####################################
+
+# Create identity
+$automationidentity = (az identity create --name id-automation --resource-group $resourceGroup -o json) | ConvertFrom-Json
+$automationidentity
+
+# Assign "Reader" role for subscription
+$subscription = (az account show -o tsv --query id)
+az role assignment create --role "Reader" --assignee $automationidentity.clientId --scope /subscriptions/$subscription
+
+# Build automation app
+az acr build --registry $acrName --image az-aca-demo:v1 azureautomationapp/.
+
+# Create Dapr configuration
+az containerapp env dapr-component set --name $containerAppsEnvironment --resource-group $resourceGroup --dapr-component-name automation --yaml "./azureautomationapp/dapr.yaml"
+
+# Create automation app
+az containerapp create `
+  --name azureautomationapp `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image "$($acr.loginServer)/az-aca-demo:v1" `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --dapr-app-id automation `
+  --user-assigned $automationidentity.id `
+  --min-replicas 0 `
+  --max-replicas 1
+
+az containerapp logs show -n azureautomationapp -g $resourceGroup --follow
 
 # Wipe out the resources
 az group delete --name $resourceGroup -y
