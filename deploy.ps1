@@ -148,6 +148,18 @@ HTTP POST http://dapr-app-id:webappnt@localhost:3500/v1.0/state/statestore
 [{ "key": "demo1", "value": "Here is state value to be stored"}]
 "@
 
+#
+# Managed identity example:
+# - Note demo does not enable identity but for information purposes
+# 1. Fetch IDENTITY_HEADER (it's guid)
+Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+INFO ENV IDENTITY_HEADER
+"@
+# Request token using specific client id and *set* identity header as seen in above:
+Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+HTTP GET "http://localhost:42356/msi/token?api-version=2019-08-01&client_id=$($automationidentity.clientId)&resource=https://management.azure.com/" "X-IDENTITY-HEADER=<guid above here>"
+"@
+
 # Query logs related to webapp-network-tester
 az monitor log-analytics query `
   --workspace $workspaceCustomerId `
@@ -213,11 +225,20 @@ $automationidentity
 $subscription = (az account show -o tsv --query id)
 az role assignment create --role "Reader" --assignee $automationidentity.clientId --scope /subscriptions/$subscription
 
+# Assign "AcrPull" for our container registry
+az role assignment create --role "AcrPull" --assignee $automationidentity.clientId --scope $acr.id
+
 # Build automation app
 az acr build --registry $acrName --image az-aca-demo:v1 azureautomationapp/.
 
 # Create Dapr configuration
 az containerapp env dapr-component set --name $containerAppsEnvironment --resource-group $resourceGroup --dapr-component-name automation --yaml "./azureautomationapp/dapr.yaml"
+
+# Login to ACR (requires Docker daemon)
+az acr update -n $acrName --admin-enabled true
+az acr login --name $acrName
+# Login to ACR (doesn't require Docker daemon)
+az acr login --name $acrName --expose-token
 
 # Create automation app
 az containerapp create `
@@ -225,14 +246,22 @@ az containerapp create `
   --resource-group $resourceGroup `
   --environment $containerAppsEnvironment `
   --image "$($acr.loginServer)/az-aca-demo:v1" `
+  --registry-server $acr.loginServer `
   --cpu "0.25" `
   --memory "0.5Gi" `
   --dapr-app-id automation `
   --user-assigned $automationidentity.id `
+  --env-vars AZURE_CLIENT_ID=$($automationidentity.clientId) `
   --min-replicas 0 `
   --max-replicas 1
 
 az containerapp logs show -n azureautomationapp -g $resourceGroup --follow
+
+# Query logs related to azureautomationapp
+az monitor log-analytics query `
+  --workspace $workspaceCustomerId `
+  --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'azureautomationapp' | project TimeGenerated, Log_s | order by TimeGenerated desc | take 50 | order by TimeGenerated asc" `
+  --out table
 
 # Wipe out the resources
 az group delete --name $resourceGroup -y
