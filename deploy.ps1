@@ -229,7 +229,7 @@ az role assignment create --role "Reader" --assignee $automationidentity.clientI
 az role assignment create --role "AcrPull" --assignee $automationidentity.clientId --scope $acr.id
 
 # Build automation app
-az acr build --registry $acrName --image az-aca-demo:v1 azureautomationapp/.
+az acr build --registry $acrName --image "az-aca-demo:v1" --output json azureautomationapp/.
 
 # Create Dapr configuration
 az containerapp env dapr-component set --name $containerAppsEnvironment --resource-group $resourceGroup --dapr-component-name automation --yaml "./azureautomationapp/dapr.yaml"
@@ -255,12 +255,20 @@ az containerapp create `
   --min-replicas 0 `
   --max-replicas 1
 
+$containerapp_id = (az containerapp show --name azureautomationapp --resource-group $resourceGroup --query id -o tsv)
+$containerapp_id
+
+# Add cron scaling rule: 6:00 AM-6:10 AM daily (https://crontab.guru)
+az rest --method GET --uri "$($containerapp_id)?api-version=2022-03-01"
+az rest --method GET --uri "$($containerapp_id)?api-version=2022-03-01" --query properties.template.scale.rules
+az rest --method PATCH --uri "$($containerapp_id)?api-version=2022-03-01" --body @azureautomationapp/rules.json
+
 az containerapp logs show -n azureautomationapp -g $resourceGroup --follow
 
 # Query logs related to azureautomationapp
 az monitor log-analytics query `
   --workspace $workspaceCustomerId `
-  --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'azureautomationapp' | project TimeGenerated, Log_s | order by TimeGenerated desc | take 50 | order by TimeGenerated asc" `
+  --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'azureautomationapp' | project TimeGenerated, Log_s | order by TimeGenerated desc | take 20 | order by TimeGenerated asc" `
   --out table
 
 # Wipe out the resources
