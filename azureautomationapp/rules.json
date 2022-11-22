@@ -11,7 +11,7 @@
               "metadata": {
                 "timezone": "Europe/Helsinki",
                 "start": "0 6 * * *",
-                "end": "10 6 * * *",
+                "end": "1 6 * * *",
                 "desiredReplicas": "1"
               }
             }

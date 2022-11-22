@@ -1,20 +1,20 @@
 # Variables
 $containerAppsEnvironment = "mycontainerenvironment"
 $workspaceName = "aca-workspace"
-$storageAccountName = "academos0000010"
+$storageAccountName = "academos00000100"
 $acrName = "myacaacr0000010"
 
-$resourceGroup = "rg-containerapps-demo"
+$resourceGroup = "rg-containerapps-demos"
 $location = "northeurope"
 
 # Login to Azure
-az login
+az login -t 8a35e8cd-119a-4446-b762-5002cf925b1d
 
 # List subscriptions
 az account list -o table
 
 # *Explicitly* select your working context
-az account set --subscription AzureDev
+az account set --subscription development
 
 # Show current context
 az account show -o table
@@ -100,7 +100,7 @@ metadata:
 - name: containerName
   value: state
 scopes:
-- webapp-network-tester
+- webappnt
 "@ > components.yaml
 
 az containerapp env dapr-component set --name $containerAppsEnvironment --resource-group $resourceGroup --dapr-component-name statestore --yaml "./components.yaml"
@@ -117,6 +117,7 @@ az containerapp create `
   --min-replicas 0 `
   --max-replicas 1 `
   --enable-dapr `
+  --system-assigned `
   --dapr-app-port 80 `
   --dapr-app-id webappnt
 
@@ -128,36 +129,37 @@ $webAppNetworkAppFqdn = (az containerapp show --name webapp-network-tester --res
 $url2 = "https://$webAppNetworkAppFqdn/api/commands"
 
 # Test that app is running succesfully
-Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 IPLOOKUP bing.com
 "@
 
 # Grab Dapr port from environment variable
-Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 INFO ENV DAPR_HTTP_PORT
 "@
 
 # Get "demo1" state content
-Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 HTTP GET http://localhost:3500/v1.0/state/statestore/demo1
 "@
 
 # Post "demo1" state content
 Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
-HTTP POST http://dapr-app-id:webappnt@localhost:3500/v1.0/state/statestore
-[{ "key": "demo1", "value": "Here is state value to be stored"}]
+HTTP POST http://localhost:3500/v1.0/state/statestore
+[{ "key": "demo1", "value": "Here is state value to be stored 1"}]
 "@
 
 #
 # Managed identity example:
 # - Note demo does not enable identity but for information purposes
 # 1. Fetch IDENTITY_HEADER (it's guid)
-Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 INFO ENV IDENTITY_HEADER
 "@
+
 # Request token using specific client id and *set* identity header as seen in above:
 Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
-HTTP GET "http://localhost:42356/msi/token?api-version=2019-08-01&client_id=$($automationidentity.clientId)&resource=https://management.azure.com/" "X-IDENTITY-HEADER=<guid above here>"
+HTTP GET "http://localhost:42356/msi/token?api-version=2019-08-01&resource=https://management.azure.com/" "X-IDENTITY-HEADER=<guid above here>"
 "@
 
 # Query logs related to webapp-network-tester
@@ -177,6 +179,9 @@ az containerapp create `
   --cpu "0.25" `
   --memory "0.5Gi" `
   --ingress "external" `
+  --enable-dapr `
+  --dapr-app-port 80 `
+  --dapr-app-id ctb `
   --target-port 80 `
   --min-replicas 0 `
   --max-replicas 1
