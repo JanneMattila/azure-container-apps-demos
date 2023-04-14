@@ -3,18 +3,19 @@ $containerAppsEnvironment = "mycontainerenvironment"
 $workspaceName = "aca-workspace"
 $storageAccountName = "academos00000100"
 $acrName = "myacaacr0000010"
+$worloadProfileName = "dedicated1"
 
 $resourceGroup = "rg-containerapps-demos"
 $location = "northeurope"
 
 # Login to Azure
-az login -t 8a35e8cd-119a-4446-b762-5002cf925b1d
+az login
 
 # List subscriptions
 az account list -o table
 
 # *Explicitly* select your working context
-az account set --subscription development
+az account set --subscription "development"
 
 # Show current context
 az account show -o table
@@ -46,7 +47,29 @@ az containerapp env create `
   --resource-group $resourceGroup `
   --logs-workspace-id $workspaceCustomerId `
   --logs-workspace-key $workspaceKey `
+  --enable-workload-profiles `
   --location $location
+
+az containerapp env workload-profile list-supported `
+  --location $location `
+  --query "[].{Name: name, Cores: properties.cores, MemoryGiB: properties.memoryGiB, Category: properties.category}" `
+  -o table
+
+# Add/Edit profile
+az containerapp env workload-profile set `
+  --name $containerAppsEnvironment `
+  --resource-group $resourceGroup `
+  --workload-profile-type "D4" `
+  --workload-profile-name $worloadProfileName `
+  --min-nodes 0  `
+  --max-nodes 1
+
+# Delete profile
+# az containerapp env workload-profile delete `
+#   --name $containerAppsEnvironment `
+#   --resource-group $resourceGroup `
+#   --workload-profile-type "Dedicated-D4" `
+#   --workload-profile-name $worloadProfileName
 
 ####################
 # Create App 1: Echo
@@ -61,7 +84,8 @@ az containerapp create `
   --ingress "external" `
   --target-port 80 `
   --min-replicas 0 `
-  --max-replicas 1
+  --max-replicas 1 `
+  --workload-profile-name "Consumption"
 
 # If you want to fetch existing container app details
 $echoAppFqdn = (az containerapp show --name echo --resource-group $resourceGroup --query properties.latestRevisionFqdn -o tsv)
@@ -184,7 +208,8 @@ az containerapp create `
   --dapr-app-id ctb `
   --target-port 80 `
   --min-replicas 0 `
-  --max-replicas 1
+  --max-replicas 1 `
+  --workload-profile-name $workloadProfileName
 
 # If you want to fetch existing container app details
 $ctbFqdn = (az containerapp show --name ctb --resource-group $resourceGroup --query properties.latestRevisionFqdn -o tsv)
