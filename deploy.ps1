@@ -6,10 +6,9 @@ $acrName = "myacaacr0000010"
 $worloadProfileName = "dedicated1"
 
 $resourceGroup = "rg-containerapps-demos"
-$location = "northeurope"
+$location = "swedencentral"
 
 # Login to Azure
-az login
 
 # List subscriptions
 az account list -o table
@@ -168,7 +167,7 @@ HTTP GET http://localhost:3500/v1.0/state/statestore/demo1
 "@
 
 # Post "demo1" state content
-Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 HTTP POST http://localhost:3500/v1.0/state/statestore
 [{ "key": "demo1", "value": "Here is state value to be stored 1"}]
 "@
@@ -182,7 +181,7 @@ INFO ENV IDENTITY_HEADER
 "@
 
 # Request token using specific client id and *set* identity header as seen in above:
-Invoke-RestMethod -Method "POST" -ContentType "text/plain" -DisableKeepAlive -Uri $url2 -Body @"
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 HTTP GET "http://localhost:42356/msi/token?api-version=2019-08-01&resource=https://management.azure.com/" "X-IDENTITY-HEADER=<guid above here>"
 "@
 
@@ -259,39 +258,28 @@ az role assignment create --role "Reader" --assignee $automationidentity.clientI
 az role assignment create --role "AcrPull" --assignee $automationidentity.clientId --scope $acr.id
 
 # Build automation app
-az acr build --registry $acrName --image "az-aca-demo:v1" --output json azureautomationapp/.
-
-# Create Dapr configuration
-az containerapp env dapr-component set --name $containerAppsEnvironment --resource-group $resourceGroup --dapr-component-name automation --yaml "./azureautomationapp/dapr.yaml"
-
-# Login to ACR (requires Docker daemon)
-az acr update -n $acrName --admin-enabled true
-az acr login --name $acrName
-# Login to ACR (doesn't require Docker daemon)
-az acr login --name $acrName --expose-token
+$imageTag = (Get-Date -Format "yyyyMMddHHmmss")
+az acr build --registry $acrName --image "az-aca-demo-cli:$imageTag" --output json azureautomationapp-cli/.
 
 # Create automation app
-az containerapp create `
+$secrets = "example1=value1", "example2=value2"
+az containerapp job create `
   --name azureautomationapp `
   --resource-group $resourceGroup `
   --environment $containerAppsEnvironment `
-  --image "$($acr.loginServer)/az-aca-demo:v1" `
+  --image "$($acr.loginServer)/az-aca-demo-cli:$imageTag" `
   --registry-server $acr.loginServer `
   --cpu "0.25" `
   --memory "0.5Gi" `
-  --dapr-app-id automation `
-  --user-assigned $automationidentity.id `
+  --trigger-type "Schedule" `
+  --cron-expression "0 6 * * *" `
+  --mi-user-assigned $automationidentity.id `
+  --registry-identity $automationidentity.id `
   --env-vars AZURE_CLIENT_ID=$($automationidentity.clientId) `
-  --min-replicas 0 `
-  --max-replicas 1
+  --secrets $secrets
 
 $containerapp_id = (az containerapp show --name azureautomationapp --resource-group $resourceGroup --query id -o tsv)
 $containerapp_id
-
-# Add cron scaling rule: 6:00 AM-6:10 AM daily (https://crontab.guru)
-az rest --method GET --uri "$($containerapp_id)?api-version=2022-03-01"
-az rest --method GET --uri "$($containerapp_id)?api-version=2022-03-01" --query properties.template.scale.rules
-az rest --method PATCH --uri "$($containerapp_id)?api-version=2022-03-01" --body @azureautomationapp/rules.json
 
 az containerapp logs show -n azureautomationapp -g $resourceGroup --follow
 

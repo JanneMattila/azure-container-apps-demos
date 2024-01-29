@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/azure-cli:2.37.0
+FROM mcr.microsoft.com/azure-cli:2.56.0
 
 COPY init.sh /bin/
 RUN chmod 755 /bin/init.sh
