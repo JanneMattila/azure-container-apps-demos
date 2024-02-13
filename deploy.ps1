@@ -2,6 +2,7 @@
 $containerAppsEnvironment = "mycontainerenvironment"
 $workspaceName = "aca-workspace"
 $storageAccountName = "academos00000100"
+$vnetName = "vnet-aca"
 $acrName = "myacaacr0000010"
 $worloadProfileName = "dedicated1"
 
@@ -9,6 +10,7 @@ $resourceGroup = "rg-containerapps-demos"
 $location = "swedencentral"
 
 # Login to Azure
+az login
 
 # List subscriptions
 az account list -o table
@@ -31,6 +33,11 @@ az provider show -n Microsoft.App -o table
 # Create new resource group
 az group create --name $resourceGroup --location $location -o table
 
+az network vnet create --name $vnetName --resource-group $resourceGroup --location $location --address-prefixes "10.0.0.0/16"
+
+$subnetId = $(az network vnet subnet create --name "aca-subnet" --vnet-name $vnetName --resource-group $resourceGroup --address-prefixes "10.0.1.0/24" --delegations "Microsoft.App/environments" --query id -o tsv)
+$subnetId
+
 # Create container registry
 $acr = (az acr create -l $location -g $resourceGroup -n $acrName --sku Basic -o json) | ConvertFrom-Json
 $acr
@@ -44,6 +51,7 @@ $workspaceCustomerId
 az containerapp env create `
   --name $containerAppsEnvironment `
   --resource-group $resourceGroup `
+  --infrastructure-subnet-resource-id $subnetId `
   --logs-workspace-id $workspaceCustomerId `
   --logs-workspace-key $workspaceKey `
   --enable-workload-profiles `
@@ -77,7 +85,8 @@ az containerapp create `
   --name echo `
   --resource-group $resourceGroup `
   --environment $containerAppsEnvironment `
-  --image jannemattila/echo:latest `
+  --image jannemattila/echo:1.0.111 `
+  --env-vars ASPNETCORE_URLS="http://*:80" `
   --cpu "0.25" `
   --memory "0.5Gi" `
   --ingress "external" `
@@ -132,7 +141,8 @@ az containerapp create `
   --name webapp-network-tester `
   --resource-group $resourceGroup `
   --environment $containerAppsEnvironment `
-  --image jannemattila/webapp-network-tester:latest `
+  --image jannemattila/webapp-network-tester:1.0.66 `
+  --env-vars ASPNETCORE_URLS="http://*:80" `
   --cpu "0.25" `
   --memory "0.5Gi" `
   --ingress "external" `
@@ -154,6 +164,16 @@ $url2 = "https://$webAppNetworkAppFqdn/api/commands"
 # Test that app is running succesfully
 Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 IPLOOKUP bing.com
+"@
+
+# Test that app is running succesfully
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+INFO ENV
+"@
+
+# Invoket other service
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+HTTP GET http://echo/
 "@
 
 # Grab Dapr port from environment variable
