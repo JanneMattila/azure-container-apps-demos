@@ -171,7 +171,12 @@ Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 INFO ENV
 "@
 
-# Invoket other service
+# Resolve other service
+Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
+IPLOOKUP echo
+"@
+
+# Invoke other service
 Invoke-RestMethod -Method "POST" -DisableKeepAlive -Uri $url2 -Body @"
 HTTP GET http://echo/
 "@
