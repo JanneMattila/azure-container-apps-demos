@@ -10,7 +10,7 @@ $resourceGroup = "rg-containerapps-demos"
 $location = "swedencentral"
 
 # Login to Azure
-az login
+az login --tenant $env:CONTOSO_TENANT_ID
 
 # List subscriptions
 az account list -o table
@@ -282,11 +282,11 @@ az role assignment create --role "Reader" --assignee $automationidentity.clientI
 # Assign "AcrPull" for our container registry
 az role assignment create --role "AcrPull" --assignee $automationidentity.clientId --scope $acr.id
 
-# Build automation app
+# Build automation app - Azure CLI
 $imageTag = (Get-Date -Format "yyyyMMddHHmmss")
 az acr build --registry $acrName --image "az-aca-demo-cli:$imageTag" --output json azureautomationapp-cli/.
 
-# Create automation app
+# Create automation app - Azure CLI
 $secrets = "example1=value1", "example2=value2"
 az containerapp job create `
   --name azureautomationapp `
@@ -313,6 +313,28 @@ az monitor log-analytics query `
   --workspace $workspaceCustomerId `
   --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'azureautomationapp' | project TimeGenerated, Log_s | order by TimeGenerated desc | take 20 | order by TimeGenerated asc" `
   --out table
+
+# Same but with PowerShell:
+# Build automation app - Azure PowerShell
+$imageTag = (Get-Date -Format "yyyyMMddHHmmss")
+az acr build --registry $acrName --image "az-aca-demo-pwsh:$imageTag" --output json azureautomationapp-pwsh/.
+
+# Create automation app - Azure PowerShell
+$secrets = "example1=value1", "example2=value2"
+az containerapp job create `
+  --name azureautomationapppwsh `
+  --resource-group $resourceGroup `
+  --environment $containerAppsEnvironment `
+  --image "$($acr.loginServer)/az-aca-demo-pwsh:$imageTag" `
+  --registry-server $acr.loginServer `
+  --cpu "0.25" `
+  --memory "0.5Gi" `
+  --trigger-type "Schedule" `
+  --cron-expression "0 12 * * *" `
+  --mi-user-assigned $automationidentity.id `
+  --registry-identity $automationidentity.id `
+  --env-vars AZURE_CLIENT_ID=$($automationidentity.clientId) `
+  --secrets $secrets
 
 # Wipe out the resources
 az group delete --name $resourceGroup -y
