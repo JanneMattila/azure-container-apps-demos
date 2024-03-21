@@ -1,5 +1,5 @@
 # Variables
-$containerAppsEnvironment = "mycontainerenvironment"
+$containerAppsEnvironment = "containerenvironment"
 $workspaceName = "aca-workspace"
 $storageAccountName = "academos00000100"
 $vnetName = "vnet-aca"
@@ -63,7 +63,7 @@ az containerapp env workload-profile list-supported `
   -o table
 
 # Add/Edit profile
-az containerapp env workload-profile set `
+az containerapp env workload-profile add `
   --name $containerAppsEnvironment `
   --resource-group $resourceGroup `
   --workload-profile-type "D4" `
@@ -85,7 +85,7 @@ az containerapp create `
   --name echo `
   --resource-group $resourceGroup `
   --environment $containerAppsEnvironment `
-  --image jannemattila/echo:1.0.111 `
+  --image jannemattila/echo:1.0.118 `
   --env-vars ASPNETCORE_URLS="http://*:80" `
   --cpu "0.25" `
   --memory "0.5Gi" `
@@ -141,7 +141,7 @@ az containerapp create `
   --name webapp-network-tester `
   --resource-group $resourceGroup `
   --environment $containerAppsEnvironment `
-  --image jannemattila/webapp-network-tester:1.0.66 `
+  --image jannemattila/webapp-network-tester:1.0.69 `
   --env-vars ASPNETCORE_URLS="http://*:80" `
   --cpu "0.25" `
   --memory "0.5Gi" `
