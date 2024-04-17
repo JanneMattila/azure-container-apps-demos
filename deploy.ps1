@@ -2,6 +2,7 @@
 $containerAppsEnvironment = "containerenvironment"
 $workspaceName = "aca-workspace"
 $storageAccountName = "academos00000100"
+$shareName = "share"
 $vnetName = "vnet-aca"
 $acrName = "myacaacr0000010"
 $worloadProfileName = "dedicated1"
@@ -315,26 +316,135 @@ az monitor log-analytics query `
   --out table
 
 # Same but with PowerShell:
+# Optionally create SMB storage for PowerShell script
+az storage share-rm create `
+  --access-tier Hot `
+  --enabled-protocols SMB `
+  --quota 10 `
+  --name $shareName `
+  --storage-account $storageAccountName
+
 # Build automation app - Azure PowerShell
 $imageTag = (Get-Date -Format "yyyyMMddHHmmss")
 az acr build --registry $acrName --image "az-aca-demo-pwsh:$imageTag" --output json azureautomationapp-pwsh/.
 
+$environmentId = $(az containerapp env show `
+    --name $containerAppsEnvironment `
+    --resource-group $resourceGroup `
+    --query id -o tsv)
+
 # Create automation app - Azure PowerShell
-$secrets = "example1=value1", "example2=value2"
-az containerapp job create `
+# $envVars = "AZURE_CLIENT_ID=$($automationidentity.clientId)", "SCRIPT_FILE=/scripts/timer1.ps1"
+# az containerapp job create `
+#   --name azureautomationapppwsh `
+#   --resource-group $resourceGroup `
+#   --environment $containerAppsEnvironment `
+#   --image "$($acr.loginServer)/az-aca-demo-pwsh:$imageTag" `
+#   --registry-server $acr.loginServer `
+#   --cpu "0.25" `
+#   --memory "0.5Gi" `
+#   --trigger-type "Schedule" `
+#   --cron-expression "0 12 * * *" `
+#   --mi-user-assigned $automationidentity.id `
+#   --registry-identity $automationidentity.id `
+#   --env-vars $envVars
+
+@"
+type: Microsoft.App/jobs
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    ? $($automationidentity.id)
+    : clientId: $($automationidentity.clientId)
+      principalId: $($automationidentity.principalId)
+properties:
+  workloadProfileName: Consumption
+  environmentId: $environmentId
+  configuration:
+    registries:
+      - identity: $($automationidentity.id)
+        server: $($acr.loginServer)
+    replicaRetryLimit: 0
+    replicaTimeout: 1800
+    triggerType: Schedule
+    scheduleTriggerConfig:
+      cronExpression: 0 12 * * *
+      parallelism: 1
+      replicaCompletionCount: 1
+  template:
+    containers:
+      - env:
+          - name: AZURE_CLIENT_ID
+            value: $($automationidentity.clientId)
+          - name: SCRIPT_FILE
+            value: /scripts/timer1.ps1
+        image: $($acr.loginServer)/az-aca-demo-pwsh:$imageTag
+        name: azureautomationapppwsh
+        resources:
+          cpu: 0.25
+          memory: 0.5Gi
+        volumeMounts:
+          - mountPath: /scripts
+            volumeName: azure-files-volume
+    volumes:
+      - name: azure-files-volume
+        storageName: share
+        storageType: AzureFile
+"@ > app.yaml
+
+# Pass script to the container
+# - Upload example script
+az storage file upload --source timer1.ps1 --share-name $shareName --path timer1.ps1 --account-name $storageAccountName
+# - Add storage to the environment
+az containerapp env storage set `
+  --name $containerAppsEnvironment `
+  --resource-group $resourceGroup `
+  --storage-name share `
+  --azure-file-account-name $storageAccountName `
+  --azure-file-account-key $storageKey `
+  --azure-file-share-name $shareName `
+  --access-mode ReadWrite
+
+az containerapp job show --name azureautomationapppwsh `
+  --resource-group $resourceGroup -o yaml > app2.yaml
+
+# Add volume configuration to the app.yaml
+<#
+      volumeMounts:
+      - volumeName: azure-files-volume
+        mountPath: /scripts
+    volumes:
+    - name: azure-files-volume
+      storageType: AzureFile
+      storageName: share
+  #>
+
+az containerapp job create --name azureautomationapppwsh `
+  --resource-group $resourceGroup `
+  --yaml app.yaml
+
+az containerapp job start `
+  --name azureautomationapppwsh `
+  --resource-group $resourceGroup
+
+az containerapp job execution list `
   --name azureautomationapppwsh `
   --resource-group $resourceGroup `
-  --environment $containerAppsEnvironment `
-  --image "$($acr.loginServer)/az-aca-demo-pwsh:$imageTag" `
-  --registry-server $acr.loginServer `
-  --cpu "0.25" `
-  --memory "0.5Gi" `
-  --trigger-type "Schedule" `
-  --cron-expression "0 12 * * *" `
-  --mi-user-assigned $automationidentity.id `
-  --registry-identity $automationidentity.id `
-  --env-vars AZURE_CLIENT_ID=$($automationidentity.clientId) `
-  --secrets $secrets
+  --query '[].{Status: properties.status, Name: name, StartTime: properties.startTime}' `
+  --output table
+
+$lastJob = $(az containerapp job execution list `
+    --name azureautomationapppwsh `
+    --resource-group $resourceGroup `
+    --query '[].{Name: name}[0]' `
+    --output tsv)
+$lastJob
+
+az monitor log-analytics query `
+  --workspace $workspaceCustomerId `
+  --analytics-query @"
+ContainerAppConsoleLogs_CL | where ContainerGroupName_s startswith '$lastJob' | order by _timestamp_d asc" --query "[].Log_s
+"@ --out table
 
 # Wipe out the resources
 az group delete --name $resourceGroup -y
