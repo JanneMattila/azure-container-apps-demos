@@ -6,10 +6,15 @@ Write-Output "Running Azure PowerShell based automation..."
 Connect-AzAccount -Identity -AccountId $env:AZURE_CLIENT_ID
 
 if ($env:SCRIPT_FILE.Length -gt 0) {
-    Write-Output "Running script file: $env:SCRIPT_FILE"
-    . $env:SCRIPT_FILE
+    if ($env:SCRIPT_FILE.StartsWith("http")) {
+        Write-Output "Running script file from web: $env:SCRIPT_FILE"
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString($env:SCRIPT_FILE))
+    }
+    else {
+        Write-Output "Running script file from path: $env:SCRIPT_FILE"
+        . $env:SCRIPT_FILE
+    }
 }
 else {
-    Write-Output "No script file provided. Running default action..."
-    Get-AzResourceGroup
+    Write-Warning "No script file provided."
 }
