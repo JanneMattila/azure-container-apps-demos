@@ -446,5 +446,76 @@ az monitor log-analytics query `
 ContainerAppConsoleLogs_CL | where ContainerGroupName_s startswith '$lastJob' | order by _timestamp_d asc" --query "[].Log_s
 "@ --out table
 
+########################
+# Same with share image
+########################
+
+@"
+type: Microsoft.App/jobs
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    ? $($automationidentity.id)
+    : clientId: $($automationidentity.clientId)
+      principalId: $($automationidentity.principalId)
+properties:
+  workloadProfileName: Consumption
+  environmentId: $environmentId
+  configuration:
+    replicaRetryLimit: 0
+    replicaTimeout: 1800
+    triggerType: Schedule
+    scheduleTriggerConfig:
+      cronExpression: 0 12 * * *
+      parallelism: 1
+      replicaCompletionCount: 1
+  template:
+    containers:
+      - env:
+          - name: AZURE_CLIENT_ID
+            value: $($automationidentity.clientId)
+          - name: SCRIPT_FILE
+            value: /scripts/timer1.ps1
+        image: jannemattila/azure-powershell-job:1.0.1
+        name: azure-powershell-job
+        resources:
+          cpu: 0.25
+          memory: 0.5Gi
+        volumeMounts:
+          - mountPath: /scripts
+            volumeName: azure-files-volume
+    volumes:
+      - name: azure-files-volume
+        storageName: share
+        storageType: AzureFile
+"@ > azure-powershell-job.yaml
+
+az containerapp job create --name azure-powershell-job `
+  --resource-group $resourceGroup `
+  --yaml azure-powershell-job.yaml
+
+az containerapp job start `
+  --name azure-powershell-job `
+  --resource-group $resourceGroup
+
+az containerapp job execution list `
+  --name azure-powershell-job `
+  --resource-group $resourceGroup `
+  --query '[].{Status: properties.status, Name: name, StartTime: properties.startTime}' `
+  --output table
+
+$lastJob = $(az containerapp job execution list `
+    --name azure-powershell-job `
+    --resource-group $resourceGroup `
+    --query '[].{Name: name}[0]' `
+    --output tsv)
+$lastJob
+
+az monitor log-analytics query `
+  --workspace $workspaceCustomerId `
+  --analytics-query @"
+ContainerAppConsoleLogs_CL | where ContainerGroupName_s startswith '$lastJob' | order by _timestamp_d asc" --query "[].Log_s
+"@ --out table
+
 # Wipe out the resources
 az group delete --name $resourceGroup -y
