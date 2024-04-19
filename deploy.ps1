@@ -394,7 +394,7 @@ properties:
 
 # Pass script to the container
 # - Upload example script
-az storage file upload --source timer1.ps1 --share-name $shareName --path timer1.ps1 --account-name $storageAccountName
+az storage file upload --source timer1.ps1 --share-name $shareName --path timer1.ps1 --account-name $storageAccountName --auth-mode key
 # - Add storage to the environment
 az containerapp env storage set `
   --name $containerAppsEnvironment `
@@ -405,10 +405,10 @@ az containerapp env storage set `
   --azure-file-share-name $shareName `
   --access-mode ReadWrite
 
-az containerapp job show --name azureautomationapppwsh `
-  --resource-group $resourceGroup -o yaml > app2.yaml
+# az containerapp job show --name azureautomationapppwsh `
+#   --resource-group $resourceGroup -o yaml > app2.yaml
 
-# Add volume configuration to the app.yaml
+# Add volume configuration to the app2.yaml
 <#
       volumeMounts:
       - volumeName: azure-files-volume
@@ -476,7 +476,7 @@ properties:
             value: $($automationidentity.clientId)
           - name: SCRIPT_FILE
             value: /scripts/timer1.ps1
-        image: jannemattila/azure-powershell-job:1.0.1
+        image: jannemattila/azure-powershell-job:1.0.4
         name: azure-powershell-job
         resources:
           cpu: 0.25
@@ -514,7 +514,7 @@ $lastJob
 az monitor log-analytics query `
   --workspace $workspaceCustomerId `
   --analytics-query @"
-ContainerAppConsoleLogs_CL | where ContainerGroupName_s startswith '$lastJob' | order by _timestamp_d asc" --query "[].Log_s
+ContainerAppConsoleLogs_CL | where ContainerGroupName_s startswith '$lastJob' | order by TimeGenerated asc" --query "[].Log_s
 "@ --out table
 
 # Wipe out the resources
