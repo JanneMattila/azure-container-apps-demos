@@ -50,13 +50,15 @@ if ($null -eq $message) {
 
 $env:QUEUE_MESSAGE_ID = $message.MessageId
 $env:QUEUE_MESSAGE_TEXT = $message.MessageText
+
+$popReceipt = [Uri]::EscapeDataString($message.PopReceipt)
+Invoke-RestMethod -Method Delete -Uri "$messagesUri/$($message.MessageId)?popreceipt=$popReceipt" -Headers (Get-QueueHeaders) -TimeoutSec 60 | Out-Null
+Write-Output "Deleted message $($message.MessageId) before processing; failures require manual resubmission."
 Write-Output "Processing message $($message.MessageId), dequeue count $($message.DequeueCount)."
 
 & $ScriptFile
 if (-not $?) {
-    throw "Script failed; leaving the message in the queue."
+    throw "Script failed; the message was already deleted and must be resubmitted manually."
 }
 
-$popReceipt = [Uri]::EscapeDataString($message.PopReceipt)
-Invoke-RestMethod -Method Delete -Uri "$messagesUri/$($message.MessageId)?popreceipt=$popReceipt" -Headers (Get-QueueHeaders) -TimeoutSec 60 | Out-Null
-Write-Output "Completed and deleted message $($message.MessageId)."
+Write-Output "Completed processing message $($message.MessageId)."

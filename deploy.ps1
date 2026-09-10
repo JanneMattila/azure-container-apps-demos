@@ -1,10 +1,11 @@
 # Variables
 $containerAppsEnvironment = "containerenvironment"
 $workspaceName = "aca-workspace"
-$storageAccountName = "academos00000100"
+$storageAccountName = "academos00000101"
 $shareName = "share"
+$queueName = "queue01"
 $vnetName = "vnet-aca"
-$acrName = "myacaacr0000010"
+$acrName = "myacaacr0000011"
 $worloadProfileName = "dedicated1"
 
 $resourceGroup = "rg-containerapps-demos"
@@ -36,8 +37,11 @@ az group create --name $resourceGroup --location $location -o table
 
 az network vnet create --name $vnetName --resource-group $resourceGroup --location $location --address-prefixes "10.0.0.0/16"
 
-$subnetId = $(az network vnet subnet create --name "aca-subnet" --vnet-name $vnetName --resource-group $resourceGroup --address-prefixes "10.0.1.0/24" --delegations "Microsoft.App/environments" --query id -o tsv)
-$subnetId
+$acaSubnetId = $(az network vnet subnet create --name "aca-subnet" --vnet-name $vnetName --resource-group $resourceGroup --address-prefixes "10.0.1.0/24" --delegations "Microsoft.App/environments" --query id -o tsv)
+$acaSubnetId
+
+$peSubnetId = $(az network vnet subnet create --name "pe-subnet" --vnet-name $vnetName --resource-group $resourceGroup --address-prefixes "10.0.3.0/24" --query id -o tsv)
+$peSubnetId
 
 # Create container registry
 $acr = (az acr create -l $location -g $resourceGroup -n $acrName --sku Basic -o json) | ConvertFrom-Json
@@ -52,7 +56,7 @@ $workspaceCustomerId
 az containerapp env create `
   --name $containerAppsEnvironment `
   --resource-group $resourceGroup `
-  --infrastructure-subnet-resource-id $subnetId `
+  --infrastructure-subnet-resource-id $acaSubnetId `
   --logs-workspace-id $workspaceCustomerId `
   --logs-workspace-key $workspaceKey `
   --enable-workload-profiles `

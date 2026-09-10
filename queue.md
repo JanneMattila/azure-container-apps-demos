@@ -2,8 +2,9 @@
 
 [queue.ps1](queue.ps1) adapts the [event-driven jobs tutorial](https://learn.microsoft.com/en-us/azure/container-apps/tutorial-event-driven-jobs).
 It creates an **Azure Container Apps Job**, not an always-running container app.
-Each execution receives one queue message, runs the bundled [timer1.ps1](timer1.ps1),
-and deletes the message only after successful completion. Message content is data,
+Each execution receives one queue message, deletes it, then runs the bundled
+[timer1.ps1](queue-app/timer1.ps1) synchronously. Deletion must succeed before the script
+starts. Failure after deletion requires manual resubmission. Message content is data,
 never executed as PowerShell. The worker exposes it as `QUEUE_MESSAGE_TEXT` (as stored,
 without Base64 decoding) and `QUEUE_MESSAGE_ID`.
 
@@ -29,25 +30,30 @@ Role assignments may take several minutes to propagate before scaling or pulling
 | --- | --- | --- |
 | Expected run time | 32,400 seconds (9 hours) | Workload budget |
 | Replica timeout | 36,000 seconds (10 hours) | Workload plus headroom |
-| Queue visibility timeout | 39,600 seconds (11 hours) | Keeps the message hidden beyond the replica deadline |
-| Replica retry limit | 0 | Queue redelivery handles retries, not an immediate replacement replica |
+| Queue visibility timeout | 39,600 seconds (11 hours) | Hides the received message until deletion; only matters if deletion is not completed |
+| Replica retry limit | 0 | No automatic replica retry; deleted work requires manual resubmission |
 | Parallelism / completion count | 1 / 1 | One message per execution |
 | Min / max executions | 0 / 1 | Conservative event scaling configuration |
 | Polling interval | 60 seconds | Queue check interval, not a work timeout |
 
-Keep visibility timeout greater than replica timeout when increasing the budget
-(Queue Storage supports up to seven days). A fresh storage token is requested
-before acknowledgement, so the initial token is not reused after nine hours.
+The worker retains its visibility-timeout validation: greater than replica timeout
+and at most seven days. Once deletion succeeds, visibility no longer affects the
+running script. Both receive and delete happen before the long-running work.
 The sample timer still sleeps only ten seconds; no nine-hour wait is added to it.
 
-Failure or termination leaves the message for redelivery after its visibility
-timeout, potentially 11 hours after receipt. This demo has no poison-message cutoff:
-repeatedly failing messages must be investigated and removed or quarantined.
-Queue delivery is at least once, so real work must be idempotent, preferably using a
-durable business operation ID. A long timeout does not prevent infrastructure
-interruptions; checkpoint long-running work. `max-executions` is a scaler setting,
-not a global serialization lock. The scaler counts queued messages including hidden
-ones; an execution finding no visible message exits without running the timer.
+Failure or termination after deletion does not return the message to the queue,
+even if the script has not started yet. Monitor failed executions and resubmit work
+manually. If the worker fails before deletion, the message can become visible again
+up to 11 hours after receipt. A delete request can also succeed at the service while
+its response is lost, leaving no message and no processing. This is an intentional
+trade-off, not a reliable exactly-once workflow.
+
+A long timeout does not prevent infrastructure interruptions; checkpoint important
+work and make resubmissions idempotent. `max-executions` is a scaler setting, not a
+global serialization lock. The scaler still checks every 60 seconds, but an empty
+queue does not request new executions. Deleting the message does not stop its running
+job. An execution already requested may find no visible message and exit without
+running the timer.
 
 ### Private queue access
 
@@ -73,7 +79,7 @@ az containerapp job execution list --name queue-timer1 --resource-group rg-conta
 az containerapp job logs show --name queue-timer1 --resource-group rg-containerapps-demos --follow
 ```
 
-The message TTL is unlimited (`-1`) so backlog and retry delays do not expire the work.
+The message TTL is unlimited (`-1`) so backlog delays do not expire the work.
 Check execution status after the next polling interval and container startup; logs
-should show processing followed by successful deletion. A failed script must leave
-the message for redelivery, not acknowledge it.
+should show deletion before processing, then completion when the script finishes.
+A failed script leaves the message deleted; it must be resubmitted manually.
